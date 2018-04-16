@@ -1,26 +1,38 @@
-FROM openjdk:9-jre
-
 ARG GOSU_VERSION=1.10
-ARG CEREBRO_VERSION=0.7.2
+ARG CEREBRO_VERSION=0.7.3
 
-ENV GOSU_VERSION $GOSU_VERSION
-RUN set -x \
- && wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$(dpkg --print-architecture)" \
- && wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$(dpkg --print-architecture).asc" \
- && gpg --keyserver ha.pool.sks-keyservers.net --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4 \
- && gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu \
- && rm /usr/local/bin/gosu.asc \
- && chmod +x /usr/local/bin/gosu \
- && gosu nobody true
+FROM alpine as download-gosu
 
-ENV CEREBRO_VERSION $CEREBRO_VERSION
-RUN cd /opt/ \
- && wget -O cerebro-${CEREBRO_VERSION}.tgz https://github.com/lmenezes/cerebro/releases/download/v${CEREBRO_VERSION}/cerebro-${CEREBRO_VERSION}.tgz \
- && tar zxvf cerebro-${CEREBRO_VERSION}.tgz \
- && rm cerebro-${CEREBRO_VERSION}.tgz \
- && mkdir cerebro-${CEREBRO_VERSION}/logs \
- && mv cerebro-${CEREBRO_VERSION} cerebro
+ARG GOSU_VERSION
+
+WORKDIR /tmp
+
+RUN apk add --update curl gnupg
+RUN curl -Lo gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64"
+RUN curl -Lo gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64.asc"
+
+RUN gpg --keyserver keyserver.ubuntu.com --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4
+RUN gpg --batch --verify /tmp/gosu.asc /tmp/gosu
+RUN chmod +x gosu
+
+FROM alpine as download-cerebro
+
+ARG CEREBRO_VERSION
+
+WORKDIR /tmp
+
+RUN apk add --update curl gnupg
+RUN curl -Lo /tmp/cerebro.tgz https://github.com/lmenezes/cerebro/releases/download/v${CEREBRO_VERSION}/cerebro-${CEREBRO_VERSION}.tgz
+RUN tar zxvf cerebro.tgz
+RUN mv cerebro-${CEREBRO_VERSION} cerebro
+
+FROM openjdk:jre-alpine
+
+COPY --from=download-gosu /tmp/gosu /usr/local/bin/gosu
+RUN gosu nobody true
+
+COPY --from=download-cerebro /tmp/cerebro /srv/cerebro
 
 EXPOSE 9000
 
-ENTRYPOINT ["/opt/cerebro/bin/cerebro"]
+ENTRYPOINT ["/srv/cerebro/bin/cerebro"]
