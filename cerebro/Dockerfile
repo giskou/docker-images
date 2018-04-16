@@ -28,6 +28,8 @@ RUN mv cerebro-${CEREBRO_VERSION} cerebro
 
 FROM openjdk:jre-alpine
 
+RUN apk add --update bash
+
 COPY --from=download-gosu /tmp/gosu /usr/local/bin/gosu
 RUN gosu nobody true
 
